@@ -46,7 +46,7 @@
 </head>
 <body>
     <div id="codeWindow">
-        <textarea id="codeInput" placeholder="Skriv din WindCode här, t.ex.:\nlocal\nplace('block', 50, 50, 0, 100, 100, 0)\ncolor: red;\nend\nlocal\nplace('sphere', 200, 200, 0, 50, 50, 0)\ncolor: blue;\nend\nlocal\ntext('Hello World', 150, 150, 0, 250, 50, 0)\nfont: Times New Roman;\ncolor: green;\nend\nlocal\nimage(20, 20, 0, 100, 100, 0)\nurl: https://picsum.photos/100/100;\ntransparency: 0.5;\nend\nloop(3) {\n  local\n  place('block', 300, 300, 0, 50, 50, 0)\n  color: yellow;\n  end\n}\nif(100 > 50) {\n  local\n  text('Condition met', 100, 400, 0, 250, 30, 0)\n  font: Courier New;\n  color: purple;\n  end\n}"></textarea>
+        <textarea id="codeInput" placeholder="Skriv din WindCode här, t.ex.:\nlocal block1\nplace('block', 50, 50, 0, 100, 100, 0)\ncolor: red;\nend\nlocal sphere1\nplace('sphere', 200, 200, 0, 50, 50, 0)\ncolor: blue;\nend\nlocal text1\ntext('Hello World', 150, 150, 0, 250, 50, 0)\nfont: Times New Roman;\ncolor: green;\nend\nlocal image1\nimage(20, 20, 0, 100, 100, 0)\nurl: https://picsum.photos/100/100;\ntransparency: 0.5;\nend\nloop(3) {\n  local block2\n  place('block', 300, 300, 0, 50, 50, 0)\n  color: yellow;\n  end\n}\nif(100 > 50) {\n  local text2\n  text('Condition met', 100, 400, 0, 250, 30, 0)\n  font: Courier New;\n  color: purple;\n  end\n}\nlocate\nmove(100, 100, 0, 150, 150, 0)\nobjekt: block1;\nend"></textarea>
         <button id="runButton">Kör kod</button>
     </div>
     <div id="canvasWindow">
@@ -59,11 +59,16 @@
         canvas.width = window.innerWidth / 2;
         canvas.height = window.innerHeight;
 
+        // Lagring av objekt
+        const objects = [];
+
         // Funktion för att tolka och köra WindCode
         function runWindCode(code) {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
+            objects.length = 0; // Rensa tidigare objekt
             const lines = code.split('\n').map(line => line.trim()).filter(line => line);
             let currentObject = null;
+            let currentName = null;
             let currentColor = 'white';
             let currentUrl = null;
             let currentTransparency = 1;
@@ -74,6 +79,7 @@
             let expectingTransparency = false;
             let expectingFont = false;
             let expectingEnd = false;
+            let expectingObjekt = false;
             let loopCount = 0;
             let loopIterations = 0;
             let loopStartIndex = -1;
@@ -97,21 +103,56 @@
                 return false;
             }
 
+            function drawObject(obj) {
+                ctx.fillStyle = obj.color || 'white';
+                ctx.globalAlpha = obj.transparency || 1;
+                if (obj.type === 'block') {
+                    ctx.fillRect(obj.x, obj.y, obj.width, obj.height);
+                } else if (obj.type === 'sphere') {
+                    ctx.beginPath();
+                    ctx.arc(obj.x + obj.width / 2, obj.y + obj.height / 2, obj.width / 2, 0, 2 * Math.PI);
+                    ctx.fill();
+                } else if (obj.type === 'text') {
+                    ctx.font = `${obj.height}px ${obj.font || 'Arial'}`;
+                    ctx.fillText(obj.text, obj.x, obj.y + obj.height);
+                } else if (obj.type === 'image' && obj.url) {
+                    const img = new Image();
+                    img.crossOrigin = 'Anonymous';
+                    img.onload = () => {
+                        ctx.globalAlpha = obj.transparency;
+                        ctx.drawImage(img, obj.x, obj.y, obj.width, obj.height);
+                        ctx.globalAlpha = 1;
+                    };
+                    img.onerror = () => {
+                        ctx.fillStyle = 'red';
+                        ctx.font = '20px Arial';
+                        ctx.fillText('Failed to load image: ' + obj.name, 10, 50);
+                    };
+                    img.src = obj.url;
+                }
+                ctx.globalAlpha = 1;
+            }
+
             function executeLines(start, end, offsetX = 0, offsetY = 0) {
                 let i = start;
                 while (i < end) {
                     const line = lines[i];
-                    if (expectingLocal && line === 'local') {
-                        expectingLocal = false;
-                        i++;
-                        continue;
+
+                    if (expectingLocal && line.startsWith('local ')) {
+                        const nameMatch = line.match(/local\s+(\w+)/);
+                        if (nameMatch && !objects.find(obj => obj.name === nameMatch[1])) {
+                            currentName = nameMatch[1];
+                            expectingLocal = false;
+                            i++;
+                            continue;
+                        }
                     }
 
                     if (!expectingLocal && line.startsWith('place(')) {
                         const params = line.match(/place\("([^"]+)",\s*(\d+),\s*(\d+),\s*(\d+),\s*(\d+),\s*(\d+),\s*(\d+)\)/);
                         if (params) {
                             const [, type, x, y, , width, height] = params;
-                            currentObject = { type, x: parseInt(x) + offsetX, y: parseInt(y) + offsetY, width: parseInt(width), height: parseInt(height) };
+                            currentObject = { name: currentName, type, x: parseInt(x) + offsetX, y: parseInt(y) + offsetY, width: parseInt(width), height: parseInt(height) };
                             expectingColor = true;
                             i++;
                             continue;
@@ -122,7 +163,7 @@
                         const params = line.match(/text\("([^"]+)",\s*(\d+),\s*(\d+),\s*(\d+),\s*(\d+),\s*(\d+),\s*(\d+)\)/);
                         if (params) {
                             const [, text, x, y, , width, height] = params;
-                            currentObject = { type: 'text', text, x: parseInt(x) + offsetX, y: parseInt(y) + offsetY, width: parseInt(width), height: parseInt(height) };
+                            currentObject = { name: currentName, type: 'text', text, x: parseInt(x) + offsetX, y: parseInt(y) + offsetY, width: parseInt(width), height: parseInt(height) };
                             expectingFont = true;
                             i++;
                             continue;
@@ -133,7 +174,7 @@
                         const params = line.match(/image\((\d+),\s*(\d+),\s*(\d+),\s*(\d+),\s*(\d+),\s*(\d+)\)/);
                         if (params) {
                             const [, x, y, , width, height] = params;
-                            currentObject = { type: 'image', x: parseInt(x) + offsetX, y: parseInt(y) + offsetY, width: parseInt(width), height: parseInt(height) };
+                            currentObject = { name: currentName, type: 'image', x: parseInt(x) + offsetX, y: parseInt(y) + offsetY, width: parseInt(width), height: parseInt(height) };
                             expectingUrl = true;
                             i++;
                             continue;
@@ -157,18 +198,10 @@
                             currentColor = colorMatch[1];
                             expectingColor = false;
                             expectingEnd = true;
-
-                            ctx.fillStyle = currentColor;
-                            if (currentObject.type === 'block') {
-                                ctx.fillRect(currentObject.x, currentObject.y, currentObject.width, currentObject.height);
-                            } else if (currentObject.type === 'sphere') {
-                                ctx.beginPath();
-                                ctx.arc(currentObject.x + currentObject.width / 2, currentObject.y + currentObject.height / 2, currentObject.width / 2, 0, 2 * Math.PI);
-                                ctx.fill();
-                            } else if (currentObject.type === 'text') {
-                                ctx.font = `${currentObject.height}px ${currentFont}`;
-                                ctx.fillText(currentObject.text, currentObject.x, currentObject.y + currentObject.height);
-                            }
+                            currentObject.color = currentColor;
+                            currentObject.font = currentFont;
+                            objects.push(currentObject);
+                            drawObject(currentObject);
                             i++;
                             continue;
                         }
@@ -193,22 +226,10 @@
                                 currentTransparency = transparency;
                                 expectingTransparency = false;
                                 expectingEnd = true;
-
-                                if (currentObject.type === 'image' && currentUrl) {
-                                    const img = new Image();
-                                    img.crossOrigin = 'Anonymous';
-                                    img.onload = () => {
-                                        ctx.globalAlpha = currentTransparency;
-                                        ctx.drawImage(img, currentObject.x, currentObject.y, currentObject.width, currentObject.height);
-                                        ctx.globalAlpha = 1;
-                                    };
-                                    img.onerror = () => {
-                                        ctx.fillStyle = 'red';
-                                        ctx.font = '20px Arial';
-                                        ctx.fillText('Failed to load image at line: ' + (i + 1), 10, 50);
-                                    };
-                                    img.src = currentUrl;
-                                }
+                                currentObject.url = currentUrl;
+                                currentObject.transparency = currentTransparency;
+                                objects.push(currentObject);
+                                drawObject(currentObject);
                             } else {
                                 ctx.clearRect(0, 0, canvas.width, canvas.height);
                                 ctx.fillStyle = 'red';
@@ -225,12 +246,56 @@
                         expectingEnd = false;
                         expectingLocal = true;
                         currentObject = null;
+                        currentName = null;
                         currentColor = 'white';
                         currentUrl = null;
                         currentTransparency = 1;
                         currentFont = 'Arial';
                         i++;
                         continue;
+                    }
+
+                    if (line === 'locate') {
+                        expectingLocal = false;
+                        expectingObjekt = true;
+                        i++;
+                        continue;
+                    }
+
+                    if (expectingObjekt && line.startsWith('move(')) {
+                        const params = line.match(/move\((\d+),\s*(\d+),\s*(\d+),\s*(\d+),\s*(\d+),\s*(\d+)\)/);
+                        if (params) {
+                            const [, x, y, , width, height] = params;
+                            currentObject = { x: parseInt(x), y: parseInt(y), width: parseInt(width), height: parseInt(height) };
+                            i++;
+                            continue;
+                        }
+                    }
+
+                    if (expectingObjekt && line.startsWith('objekt:')) {
+                        const objektMatch = line.match(/objekt:\s*(\w+);/);
+                        if (objektMatch) {
+                            const objektName = objektMatch[1];
+                            const targetObj = objects.find(obj => obj.name === objektName);
+                            if (targetObj) {
+                                targetObj.x = currentObject.x;
+                                targetObj.y = currentObject.y;
+                                targetObj.width = currentObject.width;
+                                targetObj.height = currentObject.height;
+                                expectingObjekt = false;
+                                expectingEnd = true;
+                                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                                objects.forEach(drawObject);
+                            } else {
+                                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                                ctx.fillStyle = 'red';
+                                ctx.font = '20px Arial';
+                                ctx.fillText('Object not found: ' + objektName, 10, 50);
+                                return;
+                            }
+                            i++;
+                            continue;
+                        }
                     }
 
                     if (line.startsWith('loop(')) {
