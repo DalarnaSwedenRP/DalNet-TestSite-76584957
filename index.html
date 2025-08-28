@@ -46,7 +46,7 @@
 </head>
 <body>
     <div id="codeWindow">
-        <textarea id="codeInput" placeholder="Skriv din WindCode här, t.ex.:\nlocal\nplace('block', 50, 50, 0, 100, 100, 0)\ncolor: red;\nend\nlocal\nplace('sphere', 200, 200, 0, 50, 50, 0)\ncolor: blue;\nend\nlocal\ntext('Hello World', 150, 150, 0, 250, 250, 0)\ncolor: green;\nend"></textarea>
+        <textarea id="codeInput" placeholder="Skriv din WindCode här, t.ex.:\nlocal\nplace('block', 50, 50, 0, 100, 100, 0)\ncolor: red;\nend\nlocal\nplace('sphere', 200, 200, 0, 50, 50, 0)\ncolor: blue;\nend\nlocal\ntext('Hello World', 150, 150, 0, 250, 50, 0)\ncolor: green;\nend\nlocal\nimage(20, 20, 0, 100, 100, 0)\nurl: https://example.com/image.jpg;\ntransparency: 0.5;\nend"></textarea>
         <button id="runButton">Kör kod</button>
     </div>
     <div id="canvasWindow">
@@ -67,8 +67,12 @@
             const lines = code.split('\n').map(line => line.trim()).filter(line => line);
             let currentObject = null;
             let currentColor = 'white';
+            let currentUrl = null;
+            let currentTransparency = 1;
             let expectingLocal = true;
             let expectingColor = false;
+            let expectingUrl = false;
+            let expectingTransparency = false;
             let expectingEnd = false;
 
             for (let i = 0; i < lines.length; i++) {
@@ -99,6 +103,16 @@
                     }
                 }
 
+                if (!expectingLocal && line.startsWith('image(')) {
+                    const params = line.match(/image\((\d+),\s*(\d+),\s*(\d+),\s*(\d+),\s*(\d+),\s*(\d+)\)/);
+                    if (params) {
+                        const [, x, y, , width, height] = params;
+                        currentObject = { type: 'image', x: parseInt(x), y: parseInt(y), width: parseInt(width), height: parseInt(height) };
+                        expectingUrl = true;
+                        continue;
+                    }
+                }
+
                 if (expectingColor && line.startsWith('color:')) {
                     const colorMatch = line.match(/color:\s*(\w+);/);
                     if (colorMatch) {
@@ -106,7 +120,7 @@
                         expectingColor = false;
                         expectingEnd = true;
 
-                        // Rita objektet
+                        // Rita objektet (block, sphere, text)
                         ctx.fillStyle = currentColor;
                         if (currentObject.type === 'block') {
                             ctx.fillRect(currentObject.x, currentObject.y, currentObject.width, currentObject.height);
@@ -122,11 +136,51 @@
                     }
                 }
 
+                if (expectingUrl && line.startsWith('url:')) {
+                    const urlMatch = line.match(/url:\s*([^;]+);/);
+                    if (urlMatch) {
+                        currentUrl = urlMatch[1];
+                        expectingUrl = false;
+                        expectingTransparency = true;
+                        continue;
+                    }
+                }
+
+                if (expectingTransparency && line.startsWith('transparency:')) {
+                    const transparencyMatch = line.match(/transparency:\s*(0|0\.[1-9]|1);/);
+                    if (transparencyMatch) {
+                        currentTransparency = parseFloat(transparencyMatch[1]);
+                        expectingTransparency = false;
+                        expectingEnd = true;
+
+                        // Rita bilden
+                        if (currentObject.type === 'image' && currentUrl) {
+                            const img = new Image();
+                            img.crossOrigin = 'Anonymous';
+                            img.onload = () => {
+                                ctx.globalAlpha = currentTransparency;
+                                ctx.drawImage(img, currentObject.x, currentObject.y, currentObject.width, currentObject.height);
+                                ctx.globalAlpha = 1; // Återställ transparens
+                            };
+                            img.onerror = () => {
+                                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                                ctx.fillStyle = 'red';
+                                ctx.font = '20px Arial';
+                                ctx.fillText('Failed to load image at line: ' + (i + 1), 10, 50);
+                            };
+                            img.src = currentUrl;
+                        }
+                        continue;
+                    }
+                }
+
                 if (expectingEnd && line === 'end') {
                     expectingEnd = false;
                     expectingLocal = true;
                     currentObject = null;
                     currentColor = 'white';
+                    currentUrl = null;
+                    currentTransparency = 1;
                     continue;
                 }
 
