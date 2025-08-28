@@ -46,7 +46,7 @@
 </head>
 <body>
     <div id="codeWindow">
-        <textarea id="codeInput" placeholder="Skriv din WindCode här, t.ex.:\nlocal\nplace('block', 50, 50, 0, 100, 100, 0)\ncolor: red;\nend\nlocal\nplace('sphere', 200, 200, 0, 50, 50, 0)\ncolor: blue;\nend\nlocal\ntext('Hello World', 150, 150, 0, 250, 50, 0)\ncolor: green;\nend\nlocal\nimage(20, 20, 0, 100, 100, 0)\nurl: https://example.com/image.jpg;\ntransparency: 0.5;\nend"></textarea>
+        <textarea id="codeInput" placeholder="Skriv din WindCode här, t.ex.:\nlocal\nplace('block', 50, 50, 0, 100, 100, 0)\ncolor: red;\nend\nlocal\nplace('sphere', 200, 200, 0, 50, 50, 0)\ncolor: blue;\nend\nlocal\ntext('Hello World', 150, 150, 0, 250, 50, 0)\nfont: Times New Roman;\ncolor: green;\nend\nlocal\nimage(20, 20, 0, 100, 100, 0)\nurl: https://picsum.photos/100/100;\ntransparency: 0.5;\nend\nloop(3) {\n  local\n  place('block', 300, 300, 0, 50, 50, 0)\n  color: yellow;\n  end\n}\nif(100 > 50) {\n  local\n  text('Condition met', 100, 400, 0, 250, 30, 0)\n  font: Courier New;\n  color: purple;\n  end\n}"></textarea>
         <button id="runButton">Kör kod</button>
     </div>
     <div id="canvasWindow">
@@ -61,142 +61,243 @@
 
         // Funktion för att tolka och köra WindCode
         function runWindCode(code) {
-            // Rensa canvas
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-
             const lines = code.split('\n').map(line => line.trim()).filter(line => line);
             let currentObject = null;
             let currentColor = 'white';
             let currentUrl = null;
             let currentTransparency = 1;
+            let currentFont = 'Arial';
             let expectingLocal = true;
             let expectingColor = false;
             let expectingUrl = false;
             let expectingTransparency = false;
+            let expectingFont = false;
             let expectingEnd = false;
+            let loopCount = 0;
+            let loopIterations = 0;
+            let loopStartIndex = -1;
+            let loopBody = [];
+            let ifCondition = false;
+            let ifStartIndex = -1;
+            let ifBody = [];
 
-            for (let i = 0; i < lines.length; i++) {
-                const line = lines[i];
+            function evaluateCondition(condition) {
+                const match = condition.match(/(\d+)\s*(>|>=|<|<=|==|!=)\s*(\d+)/);
+                if (!match) return false;
+                const [, left, op, right] = match;
+                const leftNum = parseInt(left);
+                const rightNum = parseInt(right);
+                if (op === '>') return leftNum > rightNum;
+                if (op === '>=') return leftNum >= rightNum;
+                if (op === '<') return leftNum < rightNum;
+                if (op === '<=') return leftNum <= rightNum;
+                if (op === '==') return leftNum === rightNum;
+                if (op === '!=') return leftNum !== rightNum;
+                return false;
+            }
 
-                if (expectingLocal && line === 'local') {
-                    expectingLocal = false;
-                    continue;
-                }
-
-                if (!expectingLocal && line.startsWith('place(')) {
-                    const params = line.match(/place\("([^"]+)",\s*(\d+),\s*(\d+),\s*(\d+),\s*(\d+),\s*(\d+),\s*(\d+)\)/);
-                    if (params) {
-                        const [, type, x, y, , width, height] = params;
-                        currentObject = { type, x: parseInt(x), y: parseInt(y), width: parseInt(width), height: parseInt(height) };
-                        expectingColor = true;
+            function executeLines(start, end, offsetX = 0, offsetY = 0) {
+                let i = start;
+                while (i < end) {
+                    const line = lines[i];
+                    if (expectingLocal && line === 'local') {
+                        expectingLocal = false;
+                        i++;
                         continue;
                     }
-                }
 
-                if (!expectingLocal && line.startsWith('text(')) {
-                    const params = line.match(/text\("([^"]+)",\s*(\d+),\s*(\d+),\s*(\d+),\s*(\d+),\s*(\d+),\s*(\d+)\)/);
-                    if (params) {
-                        const [, text, x, y, , width, height] = params;
-                        currentObject = { type: 'text', text, x: parseInt(x), y: parseInt(y), width: parseInt(width), height: parseInt(height) };
-                        expectingColor = true;
-                        continue;
-                    }
-                }
-
-                if (!expectingLocal && line.startsWith('image(')) {
-                    const params = line.match(/image\((\d+),\s*(\d+),\s*(\d+),\s*(\d+),\s*(\d+),\s*(\d+)\)/);
-                    if (params) {
-                        const [, x, y, , width, height] = params;
-                        currentObject = { type: 'image', x: parseInt(x), y: parseInt(y), width: parseInt(width), height: parseInt(height) };
-                        expectingUrl = true;
-                        continue;
-                    }
-                }
-
-                if (expectingColor && line.startsWith('color:')) {
-                    const colorMatch = line.match(/color:\s*(\w+);/);
-                    if (colorMatch) {
-                        currentColor = colorMatch[1];
-                        expectingColor = false;
-                        expectingEnd = true;
-
-                        // Rita objektet (block, sphere, text)
-                        ctx.fillStyle = currentColor;
-                        if (currentObject.type === 'block') {
-                            ctx.fillRect(currentObject.x, currentObject.y, currentObject.width, currentObject.height);
-                        } else if (currentObject.type === 'sphere') {
-                            ctx.beginPath();
-                            ctx.arc(currentObject.x + currentObject.width / 2, currentObject.y + currentObject.height / 2, currentObject.width / 2, 0, 2 * Math.PI);
-                            ctx.fill();
-                        } else if (currentObject.type === 'text') {
-                            ctx.font = `${currentObject.height}px Arial`;
-                            ctx.fillText(currentObject.text, currentObject.x, currentObject.y + currentObject.height);
+                    if (!expectingLocal && line.startsWith('place(')) {
+                        const params = line.match(/place\("([^"]+)",\s*(\d+),\s*(\d+),\s*(\d+),\s*(\d+),\s*(\d+),\s*(\d+)\)/);
+                        if (params) {
+                            const [, type, x, y, , width, height] = params;
+                            currentObject = { type, x: parseInt(x) + offsetX, y: parseInt(y) + offsetY, width: parseInt(width), height: parseInt(height) };
+                            expectingColor = true;
+                            i++;
+                            continue;
                         }
-                        continue;
                     }
-                }
 
-                if (expectingUrl && line.startsWith('url:')) {
-                    const urlMatch = line.match(/url:\s*([^;]+);/);
-                    if (urlMatch) {
-                        currentUrl = urlMatch[1];
-                        expectingUrl = false;
-                        expectingTransparency = true;
-                        continue;
+                    if (!expectingLocal && line.startsWith('text(')) {
+                        const params = line.match(/text\("([^"]+)",\s*(\d+),\s*(\d+),\s*(\d+),\s*(\d+),\s*(\d+),\s*(\d+)\)/);
+                        if (params) {
+                            const [, text, x, y, , width, height] = params;
+                            currentObject = { type: 'text', text, x: parseInt(x) + offsetX, y: parseInt(y) + offsetY, width: parseInt(width), height: parseInt(height) };
+                            expectingFont = true;
+                            i++;
+                            continue;
+                        }
                     }
-                }
 
-                if (expectingTransparency && line.startsWith('transparency:')) {
-                    const transparencyMatch = line.match(/transparency:\s*(0|0\.[1-9]|1);/);
-                    if (transparencyMatch) {
-                        currentTransparency = parseFloat(transparencyMatch[1]);
-                        expectingTransparency = false;
-                        expectingEnd = true;
+                    if (!expectingLocal && line.startsWith('image(')) {
+                        const params = line.match(/image\((\d+),\s*(\d+),\s*(\d+),\s*(\d+),\s*(\d+),\s*(\d+)\)/);
+                        if (params) {
+                            const [, x, y, , width, height] = params;
+                            currentObject = { type: 'image', x: parseInt(x) + offsetX, y: parseInt(y) + offsetY, width: parseInt(width), height: parseInt(height) };
+                            expectingUrl = true;
+                            i++;
+                            continue;
+                        }
+                    }
 
-                        // Rita bilden
-                        if (currentObject.type === 'image' && currentUrl) {
-                            const img = new Image();
-                            img.crossOrigin = 'Anonymous';
-                            img.onload = () => {
-                                ctx.globalAlpha = currentTransparency;
-                                ctx.drawImage(img, currentObject.x, currentObject.y, currentObject.width, currentObject.height);
-                                ctx.globalAlpha = 1; // Återställ transparens
-                            };
-                            img.onerror = () => {
+                    if (expectingFont && line.startsWith('font:')) {
+                        const fontMatch = line.match(/font:\s*([^;]+);/);
+                        if (fontMatch) {
+                            currentFont = fontMatch[1];
+                            expectingFont = false;
+                            expectingColor = true;
+                            i++;
+                            continue;
+                        }
+                    }
+
+                    if (expectingColor && line.startsWith('color:')) {
+                        const colorMatch = line.match(/color:\s*(\w+);/);
+                        if (colorMatch) {
+                            currentColor = colorMatch[1];
+                            expectingColor = false;
+                            expectingEnd = true;
+
+                            ctx.fillStyle = currentColor;
+                            if (currentObject.type === 'block') {
+                                ctx.fillRect(currentObject.x, currentObject.y, currentObject.width, currentObject.height);
+                            } else if (currentObject.type === 'sphere') {
+                                ctx.beginPath();
+                                ctx.arc(currentObject.x + currentObject.width / 2, currentObject.y + currentObject.height / 2, currentObject.width / 2, 0, 2 * Math.PI);
+                                ctx.fill();
+                            } else if (currentObject.type === 'text') {
+                                ctx.font = `${currentObject.height}px ${currentFont}`;
+                                ctx.fillText(currentObject.text, currentObject.x, currentObject.y + currentObject.height);
+                            }
+                            i++;
+                            continue;
+                        }
+                    }
+
+                    if (expectingUrl && line.startsWith('url:')) {
+                        const urlMatch = line.match(/url:\s*([^;]+);/);
+                        if (urlMatch) {
+                            currentUrl = urlMatch[1];
+                            expectingUrl = false;
+                            expectingTransparency = true;
+                            i++;
+                            continue;
+                        }
+                    }
+
+                    if (expectingTransparency && line.startsWith('transparency:')) {
+                        const transparencyMatch = line.match(/transparency:\s*(\d*\.?\d*);/);
+                        if (transparencyMatch) {
+                            const transparency = parseFloat(transparencyMatch[1]);
+                            if (transparency >= 0 && transparency <= 1) {
+                                currentTransparency = transparency;
+                                expectingTransparency = false;
+                                expectingEnd = true;
+
+                                if (currentObject.type === 'image' && currentUrl) {
+                                    const img = new Image();
+                                    img.crossOrigin = 'Anonymous';
+                                    img.onload = () => {
+                                        ctx.globalAlpha = currentTransparency;
+                                        ctx.drawImage(img, currentObject.x, currentObject.y, currentObject.width, currentObject.height);
+                                        ctx.globalAlpha = 1;
+                                    };
+                                    img.onerror = () => {
+                                        ctx.fillStyle = 'red';
+                                        ctx.font = '20px Arial';
+                                        ctx.fillText('Failed to load image at line: ' + (i + 1), 10, 50);
+                                    };
+                                    img.src = currentUrl;
+                                }
+                            } else {
                                 ctx.clearRect(0, 0, canvas.width, canvas.height);
                                 ctx.fillStyle = 'red';
                                 ctx.font = '20px Arial';
-                                ctx.fillText('Failed to load image at line: ' + (i + 1), 10, 50);
-                            };
-                            img.src = currentUrl;
+                                ctx.fillText('Invalid transparency value at line: ' + (i + 1), 10, 50);
+                                return;
+                            }
+                            i++;
+                            continue;
                         }
+                    }
+
+                    if (expectingEnd && line === 'end') {
+                        expectingEnd = false;
+                        expectingLocal = true;
+                        currentObject = null;
+                        currentColor = 'white';
+                        currentUrl = null;
+                        currentTransparency = 1;
+                        currentFont = 'Arial';
+                        i++;
                         continue;
                     }
-                }
 
-                if (expectingEnd && line === 'end') {
-                    expectingEnd = false;
-                    expectingLocal = true;
-                    currentObject = null;
-                    currentColor = 'white';
-                    currentUrl = null;
-                    currentTransparency = 1;
-                    continue;
-                }
+                    if (line.startsWith('loop(')) {
+                        const loopMatch = line.match(/loop\((\d+)\)\s*{/);
+                        if (loopMatch) {
+                            loopIterations = parseInt(loopMatch[1]);
+                            loopCount = 0;
+                            loopStartIndex = i + 1;
+                            loopBody = [];
+                            let braceCount = 1;
+                            i++;
+                            while (i < lines.length && braceCount > 0) {
+                                if (lines[i].includes('{')) braceCount++;
+                                if (lines[i].includes('}')) braceCount--;
+                                if (braceCount > 0) loopBody.push(lines[i]);
+                                i++;
+                            }
+                            for (let j = 0; j < loopIterations; j++) {
+                                executeLines(loopStartIndex, loopStartIndex + loopBody.length, j * 50, j * 50);
+                            }
+                            continue;
+                        }
+                    }
 
-                // Om syntaxen är felaktig, rensa canvas och visa fel
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-                ctx.fillStyle = 'red';
-                ctx.font = '20px Arial';
-                ctx.fillText('Syntax error at line: ' + (i + 1), 10, 50);
-                return;
+                    if (line.startsWith('if(')) {
+                        const conditionMatch = line.match(/if\(([^)]+)\)\s*{/);
+                        if (conditionMatch) {
+                            ifCondition = evaluateCondition(conditionMatch[1]);
+                            ifStartIndex = i + 1;
+                            ifBody = [];
+                            let braceCount = 1;
+                            i++;
+                            while (i < lines.length && braceCount > 0) {
+                                if (lines[i].includes('{')) braceCount++;
+                                if (lines[i].includes('}')) braceCount--;
+                                if (braceCount > 0) ifBody.push(lines[i]);
+                                i++;
+                            }
+                            if (ifCondition) {
+                                executeLines(ifStartIndex, ifStartIndex + ifBody.length);
+                            }
+                            continue;
+                        }
+                    }
+
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    ctx.fillStyle = 'red';
+                    ctx.font = '20px Arial';
+                    ctx.fillText('Syntax error at line: ' + (i + 1), 10, 50);
+                    return;
+                }
             }
+
+            executeLines(0, lines.length);
         }
 
-        // Hantera kör-knappen
+        // Hantera kör-knappen och automatisk körning
+        const codeInput = document.getElementById('codeInput');
+        let debounceTimeout;
+        codeInput.addEventListener('input', () => {
+            clearTimeout(debounceTimeout);
+            debounceTimeout = setTimeout(() => {
+                runWindCode(codeInput.value);
+            }, 300);
+        });
         document.getElementById('runButton').addEventListener('click', () => {
-            const code = document.getElementById('codeInput').value;
-            runWindCode(code);
+            runWindCode(codeInput.value);
         });
     </script>
 </body>
