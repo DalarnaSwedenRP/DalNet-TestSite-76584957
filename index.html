@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WindCode Prototype</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+        #codeWindow {
+            width: 50%;
+            height: 100%;
+            padding: 10px;
+            box-sizing: border-box;
+            background-color: #f0f0f0;
+        }
+        #codeInput {
+            width: 100%;
+            height: 80%;
+            font-family: monospace;
+            font-size: 14px;
+            padding: 10px;
+            resize: none;
+            border: 1px solid #ccc;
+        }
+        #runButton {
+            margin-top: 10px;
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        #canvasWindow {
+            width: 50%;
+            height: 100%;
+            background-color: #000;
+        }
+    </style>
+</head>
+<body>
+    <div id="codeWindow">
+        <textarea id="codeInput" placeholder="Skriv din WindCode här, t.ex.:\nplace('block', 50, 50, 50, 10, 10, 10) color: red;"></textarea>
+        <button id="runButton">Kör kod</button>
+    </div>
+    <div id="canvasWindow"></div>
+
+    <script>
+        // Three.js setup
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / 2 / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer();
+        renderer.setSize(window.innerWidth / 2, window.innerHeight);
+        document.getElementById('canvasWindow').appendChild(renderer.domElement);
+
+        camera.position.z = 100;
+
+        // Funktion för att tolka och köra WindCode
+        function runWindCode(code) {
+            // Rensa tidigare objekt från scenen
+            while (scene.children.length > 0) {
+                scene.remove(scene.children[0]);
+            }
+
+            // Enkel parser för WindCode
+            const lines = code.split('\n');
+            let currentObject = null;
+            let currentColor = 'white';
+
+            lines.forEach(line => {
+                line = line.trim();
+                if (line.startsWith('place(')) {
+                    // Extrahera parametrar från place-kommandot
+                    const params = line.match(/place\("([^"]+)",\s*(\d+),\s*(\d+),\s*(\d+),\s*(\d+),\s*(\d+),\s*(\d+)\)/);
+                    if (params) {
+                        const [, type, x, y, z, width, height, depth] = params;
+                        const geometry = new THREE.BoxGeometry(parseInt(width), parseInt(height), parseInt(depth));
+                        const material = new THREE.MeshBasicMaterial({ color: currentColor });
+                        currentObject = new THREE.Mesh(geometry, material);
+                        currentObject.position.set(parseInt(x), parseInt(y), parseInt(z));
+                        scene.add(currentObject);
+                    }
+                } else if (line.startsWith('color:')) {
+                    // Sätt färg för nästa objekt
+                    const colorMatch = line.match(/color:\s*(\w+);/);
+                    if (colorMatch) {
+                        currentColor = colorMatch[1];
+                        if (currentObject) {
+                            currentObject.material.color.set(currentColor);
+                        }
+                    }
+                }
+            });
+
+            // Rendera scenen
+            renderer.render(scene, camera);
+        }
+
+        // Hantera kör-knappen
+        document.getElementById('runButton').addEventListener('click', () => {
+            const code = document.getElementById('codeInput').value;
+            runWindCode(code);
+        });
+
+        // Animationsloop för kontinuerlig rendering
+        function animate() {
+            requestAnimationFrame(animate);
+            renderer.render(scene, camera);
+        }
+        animate();
+    </script>
+</body>
+</html>
