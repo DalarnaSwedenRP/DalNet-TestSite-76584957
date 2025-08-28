@@ -3,8 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WindCode Prototype</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <title>WindCode 2D Prototype</title>
     <style>
         body {
             margin: 0;
@@ -40,64 +39,91 @@
             height: 100%;
             background-color: #000;
         }
+        canvas {
+            display: block;
+        }
     </style>
 </head>
 <body>
     <div id="codeWindow">
-        <textarea id="codeInput" placeholder="Skriv din WindCode här, t.ex.:\nplace('block', 50, 50, 50, 10, 10, 10) color: red;"></textarea>
+        <textarea id="codeInput" placeholder="Skriv din WindCode här, t.ex.:\nlocal\nplace('block', 50, 50, 0, 100, 100, 0)\ncolor: red;\nend\nlocal\nplace('sphere', 200, 200, 0, 50, 50, 0)\ncolor: blue;\nend"></textarea>
         <button id="runButton">Kör kod</button>
     </div>
-    <div id="canvasWindow"></div>
+    <div id="canvasWindow">
+        <canvas id="renderCanvas"></canvas>
+    </div>
 
     <script>
-        // Three.js setup
-        const scene = new THREE.Scene();
-        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / 2 / window.innerHeight, 0.1, 1000);
-        const renderer = new THREE.WebGLRenderer();
-        renderer.setSize(window.innerWidth / 2, window.innerHeight);
-        document.getElementById('canvasWindow').appendChild(renderer.domElement);
-
-        camera.position.z = 100;
+        const canvas = document.getElementById('renderCanvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = window.innerWidth / 2;
+        canvas.height = window.innerHeight;
 
         // Funktion för att tolka och köra WindCode
         function runWindCode(code) {
-            // Rensa tidigare objekt från scenen
-            while (scene.children.length > 0) {
-                scene.remove(scene.children[0]);
-            }
+            // Rensa canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // Enkel parser för WindCode
-            const lines = code.split('\n');
+            const lines = code.split('\n').map(line => line.trim()).filter(line => line);
             let currentObject = null;
             let currentColor = 'white';
+            let expectingLocal = true;
+            let expectingColor = false;
+            let expectingEnd = false;
 
-            lines.forEach(line => {
-                line = line.trim();
-                if (line.startsWith('place(')) {
-                    // Extrahera parametrar från place-kommandot
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i];
+
+                if (expectingLocal && line === 'local') {
+                    expectingLocal = false;
+                    continue;
+                }
+
+                if (!expectingLocal && line.startsWith('place(')) {
                     const params = line.match(/place\("([^"]+)",\s*(\d+),\s*(\d+),\s*(\d+),\s*(\d+),\s*(\d+),\s*(\d+)\)/);
                     if (params) {
-                        const [, type, x, y, z, width, height, depth] = params;
-                        const geometry = new THREE.BoxGeometry(parseInt(width), parseInt(height), parseInt(depth));
-                        const material = new THREE.MeshBasicMaterial({ color: currentColor });
-                        currentObject = new THREE.Mesh(geometry, material);
-                        currentObject.position.set(parseInt(x), parseInt(y), parseInt(z));
-                        scene.add(currentObject);
+                        const [, type, x, y, , width, height] = params;
+                        currentObject = { type, x: parseInt(x), y: parseInt(y), width: parseInt(width), height: parseInt(height) };
+                        expectingColor = true;
+                        continue;
                     }
-                } else if (line.startsWith('color:')) {
-                    // Sätt färg för nästa objekt
+                }
+
+                if (expectingColor && line.startsWith('color:')) {
                     const colorMatch = line.match(/color:\s*(\w+);/);
                     if (colorMatch) {
                         currentColor = colorMatch[1];
-                        if (currentObject) {
-                            currentObject.material.color.set(currentColor);
+                        expectingColor = false;
+                        expectingEnd = true;
+
+                        // Rita objektet
+                        ctx.fillStyle = currentColor;
+                        if (currentObject.type === 'block') {
+                            ctx.fillRect(currentObject.x, currentObject.y, currentObject.width, currentObject.height);
+                        } else if (currentObject.type === 'sphere') {
+                            ctx.beginPath();
+                            ctx.arc(currentObject.x + currentObject.width / 2, currentObject.y + currentObject.height / 2, currentObject.width / 2, 0, 2 * Math.PI);
+                            ctx.fill();
                         }
+                        continue;
                     }
                 }
-            });
 
-            // Rendera scenen
-            renderer.render(scene, camera);
+                if (expectingEnd && line === 'end') {
+                    expectingEnd = false;
+                    expectingLocal = true;
+                    currentObject = null;
+                    currentColor = 'white';
+                    continue;
+                }
+
+                // Om syntaxen är felaktig, rensa canvas och visa fel
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = 'red';
+                ctx.font = '20px Arial';
+                ctx.fillText('Syntax error at line: ' + (i + 1), 10, 50);
+                return;
+            }
         }
 
         // Hantera kör-knappen
@@ -105,13 +131,6 @@
             const code = document.getElementById('codeInput').value;
             runWindCode(code);
         });
-
-        // Animationsloop för kontinuerlig rendering
-        function animate() {
-            requestAnimationFrame(animate);
-            renderer.render(scene, camera);
-        }
-        animate();
     </script>
 </body>
 </html>
