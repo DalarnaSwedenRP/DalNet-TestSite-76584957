@@ -46,7 +46,7 @@
 </head>
 <body>
     <div id="codeWindow">
-        <textarea id="codeInput" placeholder="Skriv din WindCode här, t.ex.:\nlocal\nplace('block', 50, 50, 0, 100, 100, 0)\ncolor: red;\nend\nlocal\nplace('sphere', 200, 200, 0, 50, 50, 0)\ncolor: blue;\nend"></textarea>
+        <textarea id="codeInput" placeholder="Skriv din WindCode här, t.ex.:\nlocal\nplace('block', 50, 50, 0, 100, 100, 0)\ncolor: red;\nend\nlocal\nplace('sphere', 200, 200, 0, 50, 50, 0)\ncolor: blue;\nend\nlocal\ntext('Hello World', 150, 150, 0, 250, 250, 0)\ncolor: green;\nend"></textarea>
         <button id="runButton">Kör kod</button>
     </div>
     <div id="canvasWindow">
@@ -89,6 +89,16 @@
                     }
                 }
 
+                if (!expectingLocal && line.startsWith('text(')) {
+                    const params = line.match(/text\("([^"]+)",\s*(\d+),\s*(\d+),\s*(\d+),\s*(\d+),\s*(\d+),\s*(\d+)\)/);
+                    if (params) {
+                        const [, text, x, y, , width, height] = params;
+                        currentObject = { type: 'text', text, x: parseInt(x), y: parseInt(y), width: parseInt(width), height: parseInt(height) };
+                        expectingColor = true;
+                        continue;
+                    }
+                }
+
                 if (expectingColor && line.startsWith('color:')) {
                     const colorMatch = line.match(/color:\s*(\w+);/);
                     if (colorMatch) {
@@ -104,6 +114,9 @@
                             ctx.beginPath();
                             ctx.arc(currentObject.x + currentObject.width / 2, currentObject.y + currentObject.height / 2, currentObject.width / 2, 0, 2 * Math.PI);
                             ctx.fill();
+                        } else if (currentObject.type === 'text') {
+                            ctx.font = `${currentObject.height}px Arial`;
+                            ctx.fillText(currentObject.text, currentObject.x, currentObject.y + currentObject.height);
                         }
                         continue;
                     }
