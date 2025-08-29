@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DalNet</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(-20px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 0.7; }
+            50% { transform: scale(1.1); opacity: 1; }
+            100% { transform: scale(1); opacity: 0.7; }
+        }
+        .fade-in { animation: fadeIn 1s ease-out; }
+        .slide-in { animation: slideIn 1s ease-out; }
+        .pulse { animation: pulse 2s infinite ease-in-out; }
+        .hover-scale { transition: transform 0.3s ease, box-shadow 0.3s ease; }
+        .hover-scale:hover { transform: scale(1.05); box-shadow: 0 10px 20px rgba(0,0,0,0.2); }
+        .bg-hero { background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%); position: relative; overflow: hidden; }
+        #particleCanvas { position: absolute; top:0; left:0; width:100%; height:100%; z-index:0; opacity:0.5; }
+        .search-input { transition: all 0.3s ease; }
+        .search-input:focus { box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.3); }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen flex flex-col font-sans relative">
+
+    <!-- Particle Background -->
+    <canvas id="particleCanvas" class="absolute inset-0 z-0"></canvas>
+
+    <!-- Header -->
+    <header class="bg-hero text-white py-20 relative z-10">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+            <h1 class="text-5xl md:text-7xl font-extrabold tracking-tight fade-in">DalNet RP</h1>
+            <p class="mt-4 text-xl md:text-2xl text-gray-100 slide-in">Sök på exakt vad du vill</p>
+            <div class="mt-6 max-w-md mx-auto">
+                <div class="relative">
+                    <input
+                        type="text"
+                        id="searchInput"
+                        placeholder="Sök och tryck Enter"
+                        class="search-input w-full p-4 pr-12 rounded-full border border-gray-200 bg-white/90 backdrop-blur-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-400 shadow-lg"
+                    >
+                    <svg class="absolute right-4 top-1/2 transform -translate-y-1/2 h-6 w-6 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                    </svg>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-grow py-12 px-4 sm:px-6 lg:px-8 relative z-10">
+        <div id="searchResults" class="max-w-2xl mx-auto space-y-4"></div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-gray-900 text-white py-8 relative z-10">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+            <p class="text-gray-200 text-lg">&copy; 2025 DalNet</p>
+        </div>
+    </footer>
+
+    <script>
+        // Particle Animation
+        const canvas = document.getElementById('particleCanvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        const particlesArray = [];
+        const numberOfParticles = 100;
+
+        class Particle {
+            constructor() {
+                this.x = Math.random()*canvas.width;
+                this.y = Math.random()*canvas.height;
+                this.size = Math.random()*5+1;
+                this.speedX = Math.random()*1-0.5;
+                this.speedY = Math.random()*1-0.5;
+            }
+            update() {
+                this.x += this.speedX;
+                this.y += this.speedY;
+                if(this.size>0.2) this.size -=0.01;
+                if(this.x<0||this.x>canvas.width) this.speedX*=-1;
+                if(this.y<0||this.y>canvas.height) this.speedY*=-1;
+            }
+            draw() {
+                ctx.fillStyle='rgba(255,255,255,0.8)';
+                ctx.beginPath();
+                ctx.arc(this.x,this.y,this.size,0,Math.PI*2);
+                ctx.fill();
+            }
+        }
+
+        function initParticles() { for(let i=0;i<numberOfParticles;i++){particlesArray.push(new Particle());} }
+        function animateParticles() {
+            ctx.clearRect(0,0,canvas.width,canvas.height);
+            for(let i=0;i<particlesArray.length;i++){
+                particlesArray[i].update();
+                particlesArray[i].draw();
+                if(particlesArray[i].size<=0.2){particlesArray.splice(i,1);particlesArray.push(new Particle());i--;}
+            }
+            requestAnimationFrame(animateParticles);
+        }
+        initParticles();
+        animateParticles();
+        window.addEventListener('resize',()=>{canvas.width=window.innerWidth;canvas.height=window.innerHeight;});
+
+        // Pages
+        const pages = [
+            { name: "Polismyndigheten", url: "polisen.se.html", keywords: ["polisen","polis","polisen.se"] },
+            { name: "DalarnaBanken", url: "DalarnaBanken.se.html", keywords: ["dalarnabanken","bank","pengar","banken","money","dalarnabanken.se"] },
+            { name: "SkapaHemsida", url: "skapahemsida.se.html", keywords: ["skapa","hemsida","skapahemsida","göra hemsida","egen hemsida","skapahemsida.se"] },
+            { name: "DalaJuristerna", url: "DalaJuristerna.se.html", keywords: ["juristerna","advokat","dalajuristerna","advokatbyrå","dalajuristerna.se"] },
+            { name: "RegionDalarna", url: "RegionDalarna.se.html", keywords: ["region","dalarna","regiondalarna","hjälp-i-dalarna","regiondalarna.se"] },
+            { name: "KöpDomän", url: "KöpDomän.se.html", keywords: ["domain","köpdomän","domains","köp domän","köpdomän.se"] },
+            { name: "WindMail", url: "WindMail.se.html", keywords: ["wind","mail","email","maila","windmail","windmail.se"] },
+            { name: "Hemsidokontroll", url: "hemsidokontroll.se.html", keywords: ["hemsida","hemsidor","kontroll","inställningar-över-hemsida","hemsidokontroll","hemsidokontroll.se"] }
+        ];
+
+        const searchInput = document.getElementById('searchInput');
+        const searchResults = document.getElementById('searchResults');
+
+        // **NY SÖKFUNKTION SOM FÅR ALLA DOMÄNER ATT FUNGERA**
+        searchInput.addEventListener('keypress', function(event) {
+            if(event.key==='Enter'){
+                const query=this.value.trim().toLowerCase().replace(/\.se$/,'');
+                searchResults.innerHTML='';
+
+                if(query==='') return;
+
+                // Exakt match
+                const exactMatch=pages.find(page=>{
+                    const urlWithoutHtml=page.url.replace('.html','').toLowerCase().replace(/\.se$/,'');
+                    return query===urlWithoutHtml;
+                });
+
+                if(exactMatch){window.location.href=exactMatch.url;return;}
+
+                // Filtera efter namn/keywords
+                const results=pages.filter(page=>{
+                    const name=page.name.toLowerCase().replace(/\.se$/,'');
+                    const keywords=page.keywords.map(k=>k.toLowerCase().replace(/\.se$/,''));
+                    return name.includes(query)||keywords.some(k=>k.includes(query));
+                });
+
+                if(results.length>0){
+                    results.forEach(result=>{
+                        const resultItem=document.createElement('div');
+                        resultItem.className='p-4 bg-white/90 backdrop-blur-sm rounded-lg shadow-lg hover-scale fade-in';
+                        const displayName=result.name.replace(/\.se$/i,'');
+                        resultItem.innerHTML=`<a href="${result.url}" class="text-blue-600 hover:text-blue-800 font-medium text-lg">${displayName}</a>`;
+                        searchResults.appendChild(resultItem);
+                    });
+                }else{
+                    searchResults.innerHTML='<div class="p-4 bg-white/90 backdrop-blur-sm rounded-lg shadow fade-in"><p class="text-gray-500">Inga resultat hittades</p></div>';
+                }
+            }
+        });
+
+    </script>
+</body>
+</html>
