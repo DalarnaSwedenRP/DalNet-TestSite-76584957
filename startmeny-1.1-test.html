@@ -167,5 +167,32 @@
         });
 
     </script>
+<!-- Lägg detta precis före </body> -->
+
+<!-- Uppdaterings-popup -->
+<div id="updatePopup" class="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50 hidden">
+  <div class="bg-white rounded-xl p-8 max-w-md text-center shadow-lg animate-fade-in">
+    <h2 class="text-2xl font-bold mb-4">Ny uppdatering 1.0.1!</h2>
+    <p class="mb-6 text-gray-700">Vi har lagt till nya funktioner och fixat buggar. Tack för att du använder DalNet RP!</p>
+    <button id="closePopup" class="px-6 py-2 bg-blue-600 text-white rounded-full hover:bg-blue-700 transition">Stäng</button>
+  </div>
+</div>
+
+<script>
+  // Popup med Local Storage
+  const popupKey = 'dalnet_update_1_0_1';
+  const hasSeenPopup = localStorage.getItem(popupKey);
+  const popup = document.getElementById('updatePopup');
+  const closeBtn = document.getElementById('closePopup');
+
+  if (!hasSeenPopup) {
+    popup.classList.remove('hidden');
+  }
+
+  closeBtn.addEventListener('click', () => {
+    popup.classList.add('hidden');
+    localStorage.setItem(popupKey, 'true');
+  });
+</script>
 </body>
 </html>
